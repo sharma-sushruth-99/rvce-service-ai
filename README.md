@@ -41,6 +41,9 @@ This application is a **simulation only** and does not involve real transactions
 
 ## Getting Started
 
+To run this project directly on a broswer, you will need to go this link:
+```https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221a4kdCrZb0BSBd19v3m0H4jnaCbZuHqVT%22%5D,%22action%22:%22open%22,%22userId%22:%22112260853442298466001%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing```
+
 To run this project locally, you will need to have Node.js and npm installed.
 
 1.  **Clone the repository:**
