@@ -1,13 +1,13 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from './ThemeToggle';
-import { MenuIcon, PlusIcon, LogoutIcon, TrashIcon, EditIcon } from './Icons';
+import { MenuIcon, PlusIcon, LogoutIcon, TrashIcon, EditIcon, FeedbackIcon } from './Icons';
 
 interface SidebarProps {
     isCollapsed: boolean;
     toggleSidebar: () => void;
     onNewChat: () => void;
+    onStartFeedback: () => void;
     chatHistory: { id: string; name: string }[];
     onSelectChat: (id: string) => void;
     onDeleteChat: (id: string) => void;
@@ -15,8 +15,7 @@ interface SidebarProps {
     activeChatId: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat, chatHistory, onSelectChat, onDeleteChat, onRenameChat, activeChatId }) => {
-    // FIX: Destructure the `logout` function from `useAuth` to make it available in the component.
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat, onStartFeedback, chatHistory, onSelectChat, onDeleteChat, onRenameChat, activeChatId }) => {
     const { user, logout } = useAuth();
     const [editingChatId, setEditingChatId] = useState<string | null>(null);
     const [editingName, setEditingName] = useState('');
@@ -37,13 +36,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat
         setEditingName('');
     };
 
-    const SidebarButton: React.FC<{ icon: React.ReactNode, label: string, onClick?: () => void }> = ({ icon, label, onClick }) => (
-        <div className="button-row flex items-center mb-3 cursor-pointer w-full" onClick={onClick}>
-            <button className="circle-btn w-10 h-10 rounded-full bg-light-accent text-white border-none flex justify-center items-center text-xl transition-all duration-300 hover:bg-light-accent-hover hover:scale-105 flex-shrink-0">
-                {icon}
-            </button>
-            <span className={`button-label ml-4 text-base whitespace-nowrap transition-opacity duration-300 ${isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                {label}
+    const SidebarButton: React.FC<{ icon: React.ReactNode, label: string, shortcut?: string, onClick?: () => void }> = ({ icon, label, shortcut, onClick }) => (
+        <div className="button-row flex items-center justify-between mb-3 cursor-pointer w-full" onClick={onClick}>
+            <div className="flex items-center">
+                <button className="circle-btn w-10 h-10 rounded-full bg-light-accent text-white border-none flex justify-center items-center text-xl transition-all duration-300 hover:bg-light-accent-hover hover:scale-105 flex-shrink-0">
+                    {icon}
+                </button>
+                <span className={`button-label ml-4 text-base whitespace-nowrap transition-opacity duration-300 ${isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                    {label}
+                </span>
+            </div>
+            <span className={`shortcut-label text-xs text-light-text/70 dark:text-dark-text/70 uppercase tracking-wider transition-opacity duration-300 ${isCollapsed || !shortcut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                {shortcut}
             </span>
         </div>
     );
@@ -52,13 +56,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat
         <div className={`sidebar flex flex-col justify-between bg-light-sidebar dark:bg-dark-sidebar border-r border-light-border dark:border-dark-border transition-all duration-500 ease-in-out ${isCollapsed ? 'w-20' : 'w-72'}`}>
             <div>
                 <div className="sidebar-buttons p-5">
-                    <SidebarButton icon={<MenuIcon className="w-5 h-5" />} label="Collapse" onClick={toggleSidebar} />
-                    <SidebarButton icon={<PlusIcon className="w-5 h-5" />} label="New Chat" onClick={onNewChat}/>
+                    <SidebarButton icon={<MenuIcon className="w-5 h-5" />} label="Collapse" onClick={toggleSidebar} shortcut="Alt+C" />
+                    <SidebarButton icon={<PlusIcon className="w-5 h-5" />} label="New Chat" onClick={onNewChat} shortcut="Alt+N" />
+                    <SidebarButton icon={<FeedbackIcon className="w-5 h-5" />} label="Give Feedback" onClick={onStartFeedback} />
                 </div>
                 <div className={`px-5 text-sm text-light-text/70 dark:text-dark-text/70 uppercase tracking-wider font-bold ${isCollapsed ? 'hidden' : ''}`}>
                     All Chats
                 </div>
-                <div className="chat-history mt-4 overflow-y-auto px-2">
+                <div className={`chat-history mt-4 overflow-y-auto px-2 ${isCollapsed ? 'hidden' : ''}`}>
                     {chatHistory.map(chat => (
                         <div 
                           key={chat.id} 
@@ -81,8 +86,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat
                                     className="w-full bg-transparent border-b border-light-accent dark:border-dark-accent focus:outline-none"
                                 />
                             ) : (
-                                <span className={`truncate ${isCollapsed ? 'mx-auto' : ''}`}>
-                                  {isCollapsed ? chat.name.charAt(0).toUpperCase() : chat.name}
+                                <span className="truncate">
+                                  {chat.name}
                                 </span>
                             )}
                           </div>
@@ -128,7 +133,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat
                        <div className="font-bold text-sm truncate">{user?.fullName}</div>
                        <div className="text-xs text-light-text/70 dark:text-dark-text/70 truncate">{user?.email}</div>
                    </div>
-                   <button onClick={logout} className={`ml-auto text-light-text/80 dark:text-dark-text/80 hover:text-red-500 dark:hover:text-red-400 transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}`} title="Logout">
+                   <button 
+                        onClick={() => {
+                            if (window.confirm("Are you sure you want to log out?")) {
+                                logout();
+                            }
+                        }} 
+                        className={`ml-auto text-light-text/80 dark:text-dark-text/80 hover:text-red-500 dark:hover:text-red-400 transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}`} title="Logout">
                        <LogoutIcon className="w-6 h-6"/>
                    </button>
                 </div>

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Chat as GeminiChat } from '@google/genai';
 import { useAuth } from '../context/AuthContext';
 import { Message, Chat } from '../types';
-import { callGeminiApi } from '../services/geminiService';
+import { createChatSession, sendMessage, generateChatTitle } from '../services/geminiService';
 import Sidebar from './Sidebar';
 import ChatMessage from './ChatMessage';
 import { SendIcon } from './Icons';
@@ -14,6 +15,7 @@ const ChatComponent: React.FC = () => {
     const [currentMessage, setCurrentMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const chatSessionsRef = useRef<Map<string, GeminiChat>>(new Map());
     
     const activeChat = chats.find(c => c.id === activeChatId);
 
@@ -23,7 +25,7 @@ const ChatComponent: React.FC = () => {
             name: 'New Chat',
             messages: [{
                 id: `msg_${Date.now()}`,
-                text: `Hey ${user?.fullName?.split(' ')[0]}, how can I help you?`,
+                text: `Hey ${user?.fullName?.split(' ')[0]}, how can I help you? 😊`,
                 sender: 'ai',
                 timestamp: new Date().toISOString(),
             }],
@@ -61,7 +63,6 @@ const ChatComponent: React.FC = () => {
     }, [createNewChat]);
 
     useEffect(() => {
-        // Initialize with a new chat if no chats exist
         if (chats.length === 0 && user) {
             createNewChat();
         }
@@ -79,8 +80,9 @@ const ChatComponent: React.FC = () => {
         if (window.confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
             const updatedChats = chats.filter(chat => chat.id !== chatIdToDelete);
             
+            chatSessionsRef.current.delete(chatIdToDelete);
+            
             if (activeChatId === chatIdToDelete) {
-                // If the active chat is deleted, switch to the first available chat or create a new one.
                 const newActiveId = updatedChats[0]?.id || null;
                 setActiveChatId(newActiveId);
             }
@@ -95,11 +97,30 @@ const ChatComponent: React.FC = () => {
         ));
     };
 
+    const handleStartFeedback = () => {
+        if (!activeChatId) {
+            console.warn("No active chat to start feedback in.");
+            return;
+        }
+
+        const feedbackInitiationMessage: Message = {
+            id: `msg_ai_feedback_${Date.now()}`,
+            text: "I'd be happy to help with your feedback. On a scale of 1 to 5, how would you rate your overall experience?",
+            sender: 'ai',
+            timestamp: new Date().toISOString(),
+        };
+
+        setChats(prevChats => prevChats.map(chat => 
+            chat.id === activeChatId 
+                ? { ...chat, messages: [...chat.messages, feedbackInitiationMessage] }
+                : chat
+        ));
+    };
+
     const handleSendMessage = async () => {
         const trimmedMessage = currentMessage.trim();
-        if (!trimmedMessage || isLoading || !activeChatId || !user) return;
+        if (!trimmedMessage || isLoading || !activeChatId || !user || !activeChat) return;
 
-        // --- Client-side command handling ---
         const renameRegex = /^\/rename\s+(?:"([^"]+)"|'([^']+)'|(.+))$/;
         const renameMatch = trimmedMessage.match(renameRegex);
 
@@ -117,11 +138,10 @@ const ChatComponent: React.FC = () => {
                     chat.id === activeChatId ? { ...chat, messages: [...chat.messages, systemMessage] } : chat
                 ));
                 setCurrentMessage('');
-                return; // Command handled, do not send to AI
+                return;
             }
         }
-
-        // --- Regular message sending ---
+        
         const userMessage: Message = {
             id: `msg_user_${Date.now()}`,
             text: trimmedMessage,
@@ -134,13 +154,29 @@ const ChatComponent: React.FC = () => {
                 ? { ...chat, messages: [...chat.messages, userMessage] }
                 : chat
         ));
-        
         setCurrentMessage('');
         setIsLoading(true);
+        
+        const isNewChatConversation = activeChat.name === 'New Chat';
+        const lastMessage = activeChat.messages[activeChat.messages.length - 1];
+        const isFeedbackFollowUp = lastMessage?.sender === 'ai' && lastMessage.text.includes("how would you rate your overall experience?");
+        const greetingRegex = /^(hi|hello|hey|how are you|what's up|good (morning|afternoon|evening))\s*[.?!]?$/i;
+        let titlePromise: Promise<string | null> = Promise.resolve(null);
 
+        if (isNewChatConversation && !greetingRegex.test(trimmedMessage) && !isFeedbackFollowUp) {
+            titlePromise = generateChatTitle(trimmedMessage);
+        }
+        
         try {
-            const history = activeChat?.messages.slice(1) || []; // Exclude initial greeting
-            const aiResponseText = await callGeminiApi(trimmedMessage, history, user);
+            let session = chatSessionsRef.current.get(activeChatId);
+            if (!session) {
+                const history = activeChat.messages.slice(1);
+                session = createChatSession(history);
+                chatSessionsRef.current.set(activeChatId, session);
+            }
+            
+            const aiResponseText = await sendMessage(session, trimmedMessage, user);
+            const newTitle = await titlePromise;
             
             const aiMessage: Message = {
                 id: `msg_ai_${Date.now()}`,
@@ -152,13 +188,8 @@ const ChatComponent: React.FC = () => {
             setChats(prevChats => prevChats.map(chat => {
                 if (chat.id === activeChatId) {
                     const updatedChat = { ...chat, messages: [...chat.messages, aiMessage] };
-                    // A 'New Chat' is renamed only after the first user message is sent.
-                    // At this point, the chat from prevChats has 2 messages: the initial AI greeting and the first user message.
-                    if (chat.name === 'New Chat' && chat.messages.length === 2) {
-                        const firstUserMessage = chat.messages.find(m => m.sender === 'user');
-                        if (firstUserMessage) {
-                           updatedChat.name = firstUserMessage.text.substring(0, 25) + (firstUserMessage.text.length > 25 ? '...' : '');
-                        }
+                    if (newTitle && newTitle.toLowerCase() !== 'new chat') {
+                        updatedChat.name = newTitle.replace(/^"|"$/g, '');
                     }
                     return updatedChat;
                 }
@@ -166,10 +197,10 @@ const ChatComponent: React.FC = () => {
             }));
 
         } catch (error) {
-            console.error('Error calling Gemini API:', error);
+            console.error('Error in ChatComponent while handling send message:', error);
             const errorMessage: Message = {
                 id: `msg_err_${Date.now()}`,
-                text: "Sorry, I'm having trouble connecting right now. Please try again later.",
+                text: "Sorry, I'm having trouble connecting right now. Please try again later. 😅",
                 sender: 'ai',
                 timestamp: new Date().toISOString(),
             };
@@ -189,6 +220,7 @@ const ChatComponent: React.FC = () => {
                 isCollapsed={isSidebarCollapsed}
                 toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                 onNewChat={createNewChat}
+                onStartFeedback={handleStartFeedback}
                 chatHistory={chats.map(({id, name}) => ({id, name}))}
                 onSelectChat={setActiveChatId}
                 onDeleteChat={handleDeleteChat}
@@ -197,7 +229,7 @@ const ChatComponent: React.FC = () => {
             />
             <main className="flex-1 flex flex-col h-screen">
                 <header className="p-5 border-b border-light-border dark:border-dark-border">
-                    <h1 className="text-xl font-bold">Service.AI 🎧</h1>
+                    <h1 className="text-2xl font-bold">Service.ai 🎧</h1>
                 </header>
                 <div className="flex-1 overflow-y-auto">
                     {activeChat?.messages.map(msg => <ChatMessage key={msg.id} message={msg} />)}
@@ -222,7 +254,7 @@ const ChatComponent: React.FC = () => {
                                     }
                                 }}
                                 placeholder="Type your message..."
-                                className="w-full p-4 pr-16 rounded-xl border-2 border-light-border dark:border-dark-border bg-transparent focus:outline-none focus:ring-2 focus:ring-light-accent/50 dark:focus:ring-dark-accent/50 resize-none"
+                                className="w-full p-4 pl-4 pr-16 rounded-xl border-2 border-light-border dark:border-dark-border bg-transparent focus:outline-none focus:ring-2 focus:ring-light-accent/50 dark:focus:ring-dark-accent/50 resize-none"
                                 rows={1}
                                 disabled={isLoading}
                             />

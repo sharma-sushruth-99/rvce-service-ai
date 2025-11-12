@@ -15,16 +15,28 @@ This application is a **simulation only** and does not involve real transactions
 ## Features
 
 - **Conversational AI:** A responsive chat interface powered by the Gemini API.
+- **AI-Generated Chat Titles:** New chats are automatically given a concise title by the AI based on the user's initial query, making conversations easy to identify later.
 - **Database Simulation:** The AI uses a predefined database schema to answer questions, simulating real-world data retrieval. This is achieved through **Function Calling**.
 - **User-Specific Context:** The chatbot is aware of the logged-in user ("Rahul Singh" for this demo) and can pull their specific order history and details.
 - **Chat History:** Conversations are saved and can be revisited. New chats can be started at any time.
 - **Sentiment Analysis (Implicit):** The AI is prompted to be empathetic, demonstrating its ability to handle customer interactions with appropriate sentiment.
 - **Theming:** The UI supports both light and dark modes for user comfort.
 
+## Keyboard Shortcuts
+
+The application includes a few handy keyboard shortcuts to improve accessibility and speed of use:
+
+| Shortcut | Action |
+| --- | --- |
+| `Alt` + `C` | Collapse/Expand Sidebar |
+| `Alt` + `N` | Start a New Chat |
+| `Enter` | Send Message |
+| `Shift`+`Enter`| Newline in Message Box |
+
 ## Tech Stack
 
 - **Frontend:** React, TypeScript, Tailwind CSS
-- **AI Model:** Google Gemini 2.5 Flash (via the `@google/genai` SDK)
+- **AI Model:** gemini-2.5-pro (via the `@google/genai` SDK)
 - **Database:** A mock in-memory database simulating a MySQL backend. The schema is provided as context to the AI.
 
 ## AI Architecture
@@ -41,17 +53,12 @@ This application is a **simulation only** and does not involve real transactions
 
 ## Getting Started
 
-To run this project directly on a broswer, you will need to go this link:
-```https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221a4kdCrZb0BSBd19v3m0H4jnaCbZuHqVT%22%5D,%22action%22:%22open%22,%22userId%22:%22112260853442298466001%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing```
-
-Note: To run this project directly on this link, you need to have a google account and you have to be at least 18 years of age.
-
 To run this project locally, you will need to have Node.js and npm installed.
 
 1.  **Clone the repository:**
     ```bash
-    git clone <your-repo-url>
-    cd <repo-directory>
+    git clone https://github.com/sharma-sushruth-99/rvce-service-ai
+    cd rvce-service-ai
     ```
 
 2.  **Install dependencies:**
@@ -77,4 +84,4 @@ The application bypasses a traditional login screen and automatically starts a s
 - "Where is my order?"
 - "What laptops do you have?"
 - "I want to return the mouse." (to see how it handles policy questions)
-- "The service was great, thanks!" (to test feedback submission)
+- "The service was great, thanks!" (to test feedback submission)2. I want to upload a CSV file to you so that you make changes in the applications code. I DO NOT want the end user to attach any files

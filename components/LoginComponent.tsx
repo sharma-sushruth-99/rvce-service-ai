@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,7 +23,7 @@ const LoginComponent: React.FC = () => {
         <div className="min-h-screen flex items-center justify-center bg-light-bg dark:bg-dark-bg">
             <div className="w-full max-w-md p-8 space-y-8 bg-light-sidebar dark:bg-dark-sidebar rounded-xl shadow-lg">
                 <div className="text-center">
-                    <h1 className="text-4xl font-bold">Service.AI 🎧</h1>
+                    <h1 className="text-5xl font-bold">Service.ai 🎧</h1>
                     <p className="mt-2 text-sm text-light-text/80 dark:text-dark-text/80">Customer Support Demo</p>
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleLogin}>

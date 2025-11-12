@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { Message } from '../types';
-import { BotIcon } from './Icons';
 
 const formatTimestamp = (isoString: string): string => {
   try {
@@ -27,8 +26,8 @@ const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
 
     return (
         <div className={`flex items-start gap-4 p-4 md:p-6 ${isUser ? '' : 'bg-black/5 dark:bg-white/5'}`}>
-            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isUser ? 'bg-light-accent text-white font-bold text-sm' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                {isUser ? 'You' : <BotIcon className="w-5 h-5 text-light-text dark:text-dark-text" />}
+            <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xl ${isUser ? 'bg-light-accent text-white font-bold text-sm' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                {isUser ? 'You' : '🎧'}
             </div>
             <div className="flex-grow">
                 <div className="flex items-baseline gap-2">
