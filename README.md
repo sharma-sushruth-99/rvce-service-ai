@@ -52,6 +52,8 @@ The application includes a few handy keyboard shortcuts to improve accessibility
     *   The model then uses this result to formulate a natural language response for the user.
 
 ## Getting Started
+To run this project directly without any need to download the code, go to this link:
+[{https://ai.studio/apps/drive/1a4kdCrZb0BSBd19v3m0H4jnaCbZuHqVT}]
 
 To run this project locally, you will need to have Node.js and npm installed.
 
