@@ -16,4 +16,6 @@ export interface Chat {
   id: string;
   name: string;
   messages: Message[];
+  isPinned?: boolean;
+  isUnread?: boolean;
 }

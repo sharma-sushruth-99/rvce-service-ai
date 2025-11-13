@@ -97,6 +97,8 @@ const ChatComponent: React.FC = () => {
                 sender: 'ai',
                 timestamp: new Date().toISOString(),
             }],
+            isPinned: false,
+            isUnread: false,
         };
         setChats(prev => [newChat, ...prev]);
         setActiveChatId(newChat.id);
@@ -167,37 +169,43 @@ const ChatComponent: React.FC = () => {
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [activeChat?.messages]);
+    
+    const handleSelectChat = useCallback((chatId: string) => {
+        setActiveChatId(chatId);
+        setChats(prevChats =>
+            prevChats.map(chat =>
+                chat.id === chatId ? { ...chat, isUnread: false } : chat
+            )
+        );
+    }, []);
 
-    const handleDeleteChat = (chatIdToDelete: string) => {
-        // A confirmation dialog is shown to prevent accidental deletion.
+    const handleDeleteChat = useCallback((chatIdToDelete: string) => {
         if (!window.confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
-            return; // If the user cancels, we do nothing.
+            return;
         }
 
-        // Remove the associated Gemini chat session from our reference map to free up memory.
         chatSessionsRef.current.delete(chatIdToDelete);
         
-        // We use a functional update for `setChats` to ensure we're working with the latest state.
         setChats(prevChats => {
             const updatedChats = prevChats.filter(chat => chat.id !== chatIdToDelete);
-
-            // If the deleted chat was the one currently active, we need to switch to another chat.
             if (activeChatId === chatIdToDelete) {
-                // We'll set the new active chat to be the first one in the updated list.
-                // If the list is now empty, the active chat ID will become null.
                 setActiveChatId(updatedChats[0]?.id || null);
             }
-            
-            // Return the new array of chats, which React will use to update the UI.
             return updatedChats;
         });
-    };
+    }, [activeChatId]);
 
-    const handleRenameChat = (chatId: string, newName: string) => {
+    const handleRenameChat = useCallback((chatId: string, newName: string) => {
         setChats(prevChats => prevChats.map(chat => 
             chat.id === chatId ? { ...chat, name: newName } : chat
         ));
-    };
+    }, []);
+
+    const handlePinChat = useCallback((chatIdToPin: string) => {
+        setChats(prevChats => {
+            return prevChats.map(c => c.id === chatIdToPin ? { ...c, isPinned: !c.isPinned } : c);
+        });
+    }, []);
 
     const handleSendMessage = async () => {
         const trimmedMessage = currentMessage.trim();
@@ -233,7 +241,7 @@ const ChatComponent: React.FC = () => {
 
         setChats(prevChats => prevChats.map(chat => 
             chat.id === activeChatId 
-                ? { ...chat, messages: [...chat.messages, userMessage] }
+                ? { ...chat, messages: [...chat.messages, userMessage], isUnread: false }
                 : chat
         ));
         setCurrentMessage('');
@@ -269,7 +277,11 @@ const ChatComponent: React.FC = () => {
 
             setChats(prevChats => prevChats.map(chat => {
                 if (chat.id === activeChatId) {
-                    const updatedChat = { ...chat, messages: [...chat.messages, aiMessage] };
+                    const updatedChat = { 
+                        ...chat, 
+                        messages: [...chat.messages, aiMessage],
+                        isUnread: false,
+                    };
                     if (newTitle && newTitle.toLowerCase() !== 'new chat') {
                         updatedChat.name = newTitle.replace(/^"|"$/g, '');
                     }
@@ -303,10 +315,11 @@ const ChatComponent: React.FC = () => {
                 toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                 onNewChat={createNewChat}
                 onStartFeedback={handleStartFeedback}
-                chatHistory={chats.map(({id, name}) => ({id, name}))}
-                onSelectChat={setActiveChatId}
+                chatHistory={chats}
+                onSelectChat={handleSelectChat}
                 onDeleteChat={handleDeleteChat}
                 onRenameChat={handleRenameChat}
+                onPinChat={handlePinChat}
                 activeChatId={activeChatId || ''}
             />
             <main className="flex-1 flex flex-col h-screen">
