@@ -84,4 +84,4 @@ The application bypasses a traditional login screen and automatically starts a s
 - "Where is my order?"
 - "What laptops do you have?"
 - "I want to return the mouse." (to see how it handles policy questions)
-- "The service was great, thanks!" (to test feedback submission)2. I want to upload a CSV file to you so that you make changes in the applications code. I DO NOT want the end user to attach any files
+- "The service was great, thanks!" (to test feedback submission)

@@ -1,11 +1,12 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (email: string) => User | null; // Kept for potential future use or debugging
+  login: (email: string) => User | null;
   logout: () => void;
+  availableUsers: User[];
 }
 
 // Dummy user data based on the provided SQL seed.
@@ -19,16 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // This simulates an active session for "Rahul Singh" as requested.
-    const demoUser = DUMMY_USERS.find(u => u.email === 'rahul.singh@example.com');
-    if (demoUser) {
-      setUser(demoUser);
-    }
-    setIsLoading(false);
-  }, []);
+  const [isLoading, setIsLoading] = useState(false); // No async op on start
 
   const login = (email: string): User | null => {
     const foundUser = DUMMY_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -44,7 +36,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, availableUsers: DUMMY_USERS }}>
       {children}
     </AuthContext.Provider>
   );

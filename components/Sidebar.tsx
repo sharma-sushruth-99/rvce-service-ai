@@ -104,18 +104,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat
                                 >
                                     <EditIcon className="w-4 h-4" />
                                 </button>
-                                {chatHistory.length > 1 && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onDeleteChat(chat.id);
-                                        }}
-                                        className="p-1 rounded-md text-light-text/60 dark:text-dark-text/60 hover:bg-black/10 dark:hover:bg-white/10"
-                                        title="Delete chat"
-                                    >
-                                        <TrashIcon className="w-4 h-4" />
-                                    </button>
-                                )}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDeleteChat(chat.id);
+                                    }}
+                                    className="p-1 rounded-md text-light-text/60 dark:text-dark-text/60 hover:bg-black/10 dark:hover:bg-white/10"
+                                    title="Delete chat"
+                                >
+                                    <TrashIcon className="w-4 h-4" />
+                                </button>
                             </div>
                           )}
                         </div>
@@ -134,11 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat
                        <div className="text-xs text-light-text/70 dark:text-dark-text/70 truncate">{user?.email}</div>
                    </div>
                    <button 
-                        onClick={() => {
-                            if (window.confirm("Are you sure you want to log out?")) {
-                                logout();
-                            }
-                        }} 
+                        onClick={logout} 
                         className={`ml-auto text-light-text/80 dark:text-dark-text/80 hover:text-red-500 dark:hover:text-red-400 transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}`} title="Logout">
                        <LogoutIcon className="w-6 h-6"/>
                    </button>

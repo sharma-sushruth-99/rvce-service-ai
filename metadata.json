@@ -1,5 +1,7 @@
 {
   "name": "Service.AI Chatbot",
   "description": "An AI-powered chatbot designed for customer support in an e-commerce environment. It assists users with orders, product information, and feedback, demonstrating sentiment analysis and database interaction capabilities.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

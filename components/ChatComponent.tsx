@@ -5,7 +5,14 @@ import { Message, Chat } from '../types';
 import { createChatSession, sendMessage, generateChatTitle } from '../services/geminiService';
 import Sidebar from './Sidebar';
 import ChatMessage from './ChatMessage';
-import { SendIcon } from './Icons';
+import { SendIcon, MicrophoneIcon } from './Icons';
+
+// Define window interface for TypeScript to recognize SpeechRecognition APIs
+interface IWindow extends Window {
+  SpeechRecognition: any;
+  webkitSpeechRecognition: any;
+}
+declare const window: IWindow;
 
 const ChatComponent: React.FC = () => {
     const { user } = useAuth();
@@ -14,10 +21,71 @@ const ChatComponent: React.FC = () => {
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
     const [currentMessage, setCurrentMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatSessionsRef = useRef<Map<string, GeminiChat>>(new Map());
+    const recognitionRef = useRef<any>(null);
     
     const activeChat = chats.find(c => c.id === activeChatId);
+
+    // Set up Speech Recognition
+    useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            console.warn("Speech recognition is not supported in this browser.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event: any) => {
+            let finalTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                }
+            }
+            if (finalTranscript) {
+                setCurrentMessage(prev => (prev ? prev.trim() + ' ' : '') + finalTranscript.trim());
+            }
+        };
+        
+        recognition.onend = () => {
+            setIsRecording(false);
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error);
+             if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                alert("Microphone access was denied. Please allow microphone access in your browser settings to use this feature.");
+            }
+            setIsRecording(false);
+        };
+
+        recognitionRef.current = recognition;
+
+        return () => {
+            if (recognitionRef.current) {
+                recognitionRef.current.stop();
+            }
+        };
+    }, []);
+
+    const handleToggleRecording = () => {
+        if (!recognitionRef.current) {
+            alert("Sorry, speech recognition is not supported on your browser.");
+            return;
+        }
+        if (isRecording) {
+            recognitionRef.current.stop();
+        } else {
+            recognitionRef.current.start();
+        }
+        setIsRecording(!isRecording);
+    };
 
     const createNewChat = useCallback(() => {
         const newChat: Chat = {
@@ -77,18 +145,28 @@ const ChatComponent: React.FC = () => {
     }, [activeChat?.messages]);
 
     const handleDeleteChat = (chatIdToDelete: string) => {
-        if (window.confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
-            const updatedChats = chats.filter(chat => chat.id !== chatIdToDelete);
-            
-            chatSessionsRef.current.delete(chatIdToDelete);
-            
-            if (activeChatId === chatIdToDelete) {
-                const newActiveId = updatedChats[0]?.id || null;
-                setActiveChatId(newActiveId);
-            }
-            setChats(updatedChats);
-
+        // A confirmation dialog is shown to prevent accidental deletion.
+        if (!window.confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
+            return; // If the user cancels, we do nothing.
         }
+
+        // Remove the associated Gemini chat session from our reference map to free up memory.
+        chatSessionsRef.current.delete(chatIdToDelete);
+        
+        // We use a functional update for `setChats` to ensure we're working with the latest state.
+        setChats(prevChats => {
+            const updatedChats = prevChats.filter(chat => chat.id !== chatIdToDelete);
+
+            // If the deleted chat was the one currently active, we need to switch to another chat.
+            if (activeChatId === chatIdToDelete) {
+                // We'll set the new active chat to be the first one in the updated list.
+                // If the list is now empty, the active chat ID will become null.
+                setActiveChatId(updatedChats[0]?.id || null);
+            }
+            
+            // Return the new array of chats, which React will use to update the UI.
+            return updatedChats;
+        });
     };
 
     const handleRenameChat = (chatId: string, newName: string) => {
@@ -229,7 +307,7 @@ const ChatComponent: React.FC = () => {
             />
             <main className="flex-1 flex flex-col h-screen">
                 <header className="p-5 border-b border-light-border dark:border-dark-border">
-                    <h1 className="text-2xl font-bold">Service.ai 🎧</h1>
+                    <h1 className="text-2xl font-bold">Service.AI 🎧</h1>
                 </header>
                 <div className="flex-1 overflow-y-auto">
                     {activeChat?.messages.map(msg => <ChatMessage key={msg.id} message={msg} />)}
@@ -253,11 +331,23 @@ const ChatComponent: React.FC = () => {
                                         handleSendMessage();
                                     }
                                 }}
-                                placeholder="Type your message..."
-                                className="w-full p-4 pl-4 pr-16 rounded-xl border-2 border-light-border dark:border-dark-border bg-transparent focus:outline-none focus:ring-2 focus:ring-light-accent/50 dark:focus:ring-dark-accent/50 resize-none"
+                                placeholder="Type your message or use the microphone..."
+                                className="w-full p-4 pl-4 pr-28 rounded-xl border-2 border-light-border dark:border-dark-border bg-transparent focus:outline-none focus:ring-2 focus:ring-light-accent/50 dark:focus:ring-dark-accent/50 resize-none"
                                 rows={1}
                                 disabled={isLoading}
                             />
+                            <button
+                                type="button"
+                                onClick={handleToggleRecording}
+                                title={isRecording ? 'Stop recording' : 'Start voice input'}
+                                className={`absolute right-16 top-1/2 -translate-y-1/2 p-2 rounded-full transition-all duration-200 ease-in-out
+                                    ${isRecording 
+                                        ? 'bg-red-500 text-white animate-pulse' 
+                                        : 'text-light-text/70 dark:text-dark-text/70 hover:bg-black/10 dark:hover:bg-white/10'
+                                    }`}
+                            >
+                                <MicrophoneIcon className="w-6 h-6" />
+                            </button>
                             <button 
                                 onClick={handleSendMessage} 
                                 disabled={isLoading || !currentMessage.trim()}
