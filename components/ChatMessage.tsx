@@ -18,6 +18,27 @@ const formatTimestamp = (isoString: string): string => {
   }
 };
 
+const SimpleMarkdownRenderer: React.FC<{ text: string }> = ({ text }) => {
+    // Regex to find **bold** and _underline_ parts, capturing them to preserve order.
+    const parts = text.split(/(\*\*.*?\*\*|_.*?_)/g);
+
+    return (
+        <>
+            {parts.map((part, index) => {
+                if (part.startsWith('**') && part.endsWith('**')) {
+                    return <strong key={index}>{part.slice(2, -2)}</strong>;
+                }
+                if (part.startsWith('_') && part.endsWith('_')) {
+                    return <u key={index}>{part.slice(1, -1)}</u>;
+                }
+                // Return the plain text part
+                return part;
+            })}
+        </>
+    );
+};
+
+
 const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
     const isUser = message.sender === 'user';
     const contactSupportToken = '[CONTACT_SUPPORT]';
@@ -36,7 +57,9 @@ const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
                         {formatTimestamp(message.timestamp)}
                     </span>
                 </div>
-                <p className="text-base whitespace-pre-wrap mt-1">{displayText}</p>
+                <p className="text-base whitespace-pre-wrap mt-1">
+                    <SimpleMarkdownRenderer text={displayText} />
+                </p>
                 {showContactInfo && (
                     <div className="mt-2 text-sm text-light-text/70 dark:text-dark-text/70">
                         Contacting customer service (+91 0101010101)

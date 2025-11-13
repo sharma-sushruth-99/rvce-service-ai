@@ -102,6 +102,26 @@ const ChatComponent: React.FC = () => {
         setActiveChatId(newChat.id);
     }, [user]);
 
+    const handleStartFeedback = useCallback(() => {
+        if (!activeChatId) {
+            console.warn("No active chat to start feedback in.");
+            return;
+        }
+
+        const feedbackInitiationMessage: Message = {
+            id: `msg_ai_feedback_${Date.now()}`,
+            text: "I'd be happy to help with your feedback. On a scale of 1 to 5, how would you rate your overall experience?",
+            sender: 'ai',
+            timestamp: new Date().toISOString(),
+        };
+
+        setChats(prevChats => prevChats.map(chat => 
+            chat.id === activeChatId 
+                ? { ...chat, messages: [...chat.messages, feedbackInitiationMessage] }
+                : chat
+        ));
+    }, [activeChatId]);
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             const activeEl = document.activeElement;
@@ -119,6 +139,10 @@ const ChatComponent: React.FC = () => {
                         event.preventDefault();
                         createNewChat();
                         break;
+                    case 'f':
+                        event.preventDefault();
+                        handleStartFeedback();
+                        break;
                 }
             }
         };
@@ -128,7 +152,7 @@ const ChatComponent: React.FC = () => {
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [createNewChat]);
+    }, [createNewChat, handleStartFeedback]);
 
     useEffect(() => {
         if (chats.length === 0 && user) {
@@ -172,26 +196,6 @@ const ChatComponent: React.FC = () => {
     const handleRenameChat = (chatId: string, newName: string) => {
         setChats(prevChats => prevChats.map(chat => 
             chat.id === chatId ? { ...chat, name: newName } : chat
-        ));
-    };
-
-    const handleStartFeedback = () => {
-        if (!activeChatId) {
-            console.warn("No active chat to start feedback in.");
-            return;
-        }
-
-        const feedbackInitiationMessage: Message = {
-            id: `msg_ai_feedback_${Date.now()}`,
-            text: "I'd be happy to help with your feedback. On a scale of 1 to 5, how would you rate your overall experience?",
-            sender: 'ai',
-            timestamp: new Date().toISOString(),
-        };
-
-        setChats(prevChats => prevChats.map(chat => 
-            chat.id === activeChatId 
-                ? { ...chat, messages: [...chat.messages, feedbackInitiationMessage] }
-                : chat
         ));
     };
 
@@ -307,7 +311,7 @@ const ChatComponent: React.FC = () => {
             />
             <main className="flex-1 flex flex-col h-screen">
                 <header className="p-5 border-b border-light-border dark:border-dark-border">
-                    <h1 className="text-2xl font-bold">Service.AI 🎧</h1>
+                    <h1 className="text-3xl font-bold">Service.AI 🎧</h1>
                 </header>
                 <div className="flex-1 overflow-y-auto">
                     {activeChat?.messages.map(msg => <ChatMessage key={msg.id} message={msg} />)}
@@ -320,8 +324,8 @@ const ChatComponent: React.FC = () => {
                     <div ref={chatEndRef} />
                 </div>
                 <div className="p-4 border-t border-light-border dark:border-dark-border">
-                    <div className="max-w-4xl mx-auto">
-                        <div className="relative">
+                    <div className="flex items-center gap-2 max-w-4xl mx-auto">
+                        <div className="relative flex-grow">
                             <textarea
                                 value={currentMessage}
                                 onChange={(e) => setCurrentMessage(e.target.value)}
@@ -332,22 +336,10 @@ const ChatComponent: React.FC = () => {
                                     }
                                 }}
                                 placeholder="Type your message or use the microphone..."
-                                className="w-full p-4 pl-4 pr-28 rounded-xl border-2 border-light-border dark:border-dark-border bg-transparent focus:outline-none focus:ring-2 focus:ring-light-accent/50 dark:focus:ring-dark-accent/50 resize-none"
+                                className="w-full p-4 pr-14 rounded-xl border-2 border-light-border dark:border-dark-border bg-transparent focus:outline-none focus:ring-2 focus:ring-light-accent/50 dark:focus:ring-dark-accent/50 resize-none"
                                 rows={1}
                                 disabled={isLoading}
                             />
-                            <button
-                                type="button"
-                                onClick={handleToggleRecording}
-                                title={isRecording ? 'Stop recording' : 'Start voice input'}
-                                className={`absolute right-16 top-1/2 -translate-y-1/2 p-2 rounded-full transition-all duration-200 ease-in-out
-                                    ${isRecording 
-                                        ? 'bg-red-500 text-white animate-pulse' 
-                                        : 'text-light-text/70 dark:text-dark-text/70 hover:bg-black/10 dark:hover:bg-white/10'
-                                    }`}
-                            >
-                                <MicrophoneIcon className="w-6 h-6" />
-                            </button>
                             <button 
                                 onClick={handleSendMessage} 
                                 disabled={isLoading || !currentMessage.trim()}
@@ -356,6 +348,18 @@ const ChatComponent: React.FC = () => {
                                 <SendIcon className="w-6 h-6" />
                             </button>
                         </div>
+                        <button
+                            type="button"
+                            onClick={handleToggleRecording}
+                            title={isRecording ? 'Stop recording' : 'Start voice input'}
+                            className={`p-3 rounded-full transition-all duration-200 ease-in-out
+                                ${isRecording 
+                                    ? 'bg-red-500 text-white animate-pulse' 
+                                    : 'text-light-text/70 dark:text-dark-text/70 hover:bg-black/10 dark:hover:bg-white/10'
+                                }`}
+                        >
+                            <MicrophoneIcon className="w-6 h-6" />
+                        </button>
                     </div>
                 </div>
             </main>

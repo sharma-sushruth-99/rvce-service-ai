@@ -58,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat
                 <div className="sidebar-buttons p-5">
                     <SidebarButton icon={<MenuIcon className="w-5 h-5" />} label="Collapse" onClick={toggleSidebar} shortcut="Alt+C" />
                     <SidebarButton icon={<PlusIcon className="w-5 h-5" />} label="New Chat" onClick={onNewChat} shortcut="Alt+N" />
-                    <SidebarButton icon={<FeedbackIcon className="w-5 h-5" />} label="Give Feedback" onClick={onStartFeedback} />
+                    <SidebarButton icon={<FeedbackIcon className="w-5 h-5" />} label="Give Feedback" onClick={onStartFeedback} shortcut="Alt+F" />
                 </div>
                 <div className={`px-5 text-sm text-light-text/70 dark:text-dark-text/70 uppercase tracking-wider font-bold ${isCollapsed ? 'hidden' : ''}`}>
                     All Chats
