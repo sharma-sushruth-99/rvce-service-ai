@@ -30,6 +30,7 @@ The application includes a few handy keyboard shortcuts to improve accessibility
 | --- | --- |
 | `Alt` + `C` | Collapse/Expand Sidebar |
 | `Alt` + `N` | Start a New Chat |
+| `Alt` + `F` | Give Feedback |
 | `Enter` | Send Message |
 | `Shift`+`Enter`| Newline in Message Box |
 
