@@ -5,14 +5,8 @@ import { Message, Chat } from '../types';
 import { createChatSession, sendMessage, generateChatTitle } from '../services/geminiService';
 import Sidebar from './Sidebar';
 import ChatMessage from './ChatMessage';
+import VoiceChat from './VoiceChat';
 import { SendIcon, MicrophoneIcon } from './Icons';
-
-// Define window interface for TypeScript to recognize SpeechRecognition APIs
-interface IWindow extends Window {
-  SpeechRecognition: any;
-  webkitSpeechRecognition: any;
-}
-declare const window: IWindow;
 
 const ChatComponent: React.FC = () => {
     const { user } = useAuth();
@@ -21,71 +15,11 @@ const ChatComponent: React.FC = () => {
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
     const [currentMessage, setCurrentMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [isRecording, setIsRecording] = useState(false);
+    const [isVoiceMode, setIsVoiceMode] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatSessionsRef = useRef<Map<string, GeminiChat>>(new Map());
-    const recognitionRef = useRef<any>(null);
     
     const activeChat = chats.find(c => c.id === activeChatId);
-
-    // Set up Speech Recognition
-    useEffect(() => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            console.warn("Speech recognition is not supported in this browser.");
-            return;
-        }
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-
-        recognition.onresult = (event: any) => {
-            let finalTranscript = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
-                }
-            }
-            if (finalTranscript) {
-                setCurrentMessage(prev => (prev ? prev.trim() + ' ' : '') + finalTranscript.trim());
-            }
-        };
-        
-        recognition.onend = () => {
-            setIsRecording(false);
-        };
-
-        recognition.onerror = (event: any) => {
-            console.error('Speech recognition error:', event.error);
-             if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                alert("Microphone access was denied. Please allow microphone access in your browser settings to use this feature.");
-            }
-            setIsRecording(false);
-        };
-
-        recognitionRef.current = recognition;
-
-        return () => {
-            if (recognitionRef.current) {
-                recognitionRef.current.stop();
-            }
-        };
-    }, []);
-
-    const handleToggleRecording = () => {
-        if (!recognitionRef.current) {
-            alert("Sorry, speech recognition is not supported on your browser.");
-            return;
-        }
-        if (isRecording) {
-            recognitionRef.current.stop();
-        } else {
-            recognitionRef.current.start();
-        }
-        setIsRecording(!isRecording);
-    };
 
     const createNewChat = useCallback(() => {
         const newChat: Chat = {
@@ -102,6 +36,7 @@ const ChatComponent: React.FC = () => {
         };
         setChats(prev => [newChat, ...prev]);
         setActiveChatId(newChat.id);
+        setIsVoiceMode(false);
     }, [user]);
 
     const handleStartFeedback = useCallback(() => {
@@ -122,6 +57,7 @@ const ChatComponent: React.FC = () => {
                 ? { ...chat, messages: [...chat.messages, feedbackInitiationMessage] }
                 : chat
         ));
+        setIsVoiceMode(false);
     }, [activeChatId]);
 
     useEffect(() => {
@@ -168,7 +104,7 @@ const ChatComponent: React.FC = () => {
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [activeChat?.messages]);
+    }, [activeChat?.messages, isVoiceMode]);
     
     const handleSelectChat = useCallback((chatId: string) => {
         setActiveChatId(chatId);
@@ -177,6 +113,7 @@ const ChatComponent: React.FC = () => {
                 chat.id === chatId ? { ...chat, isUnread: false } : chat
             )
         );
+        setIsVoiceMode(false);
     }, []);
 
     const handleDeleteChat = useCallback((chatIdToDelete: string) => {
@@ -206,6 +143,23 @@ const ChatComponent: React.FC = () => {
             return prevChats.map(c => c.id === chatIdToPin ? { ...c, isPinned: !c.isPinned } : c);
         });
     }, []);
+
+    const handleVoiceMessage = useCallback((text: string, sender: 'user' | 'ai') => {
+        if (!activeChatId) return;
+
+        const newMessage: Message = {
+            id: `msg_${sender}_${Date.now()}_${Math.random()}`,
+            text: text,
+            sender: sender,
+            timestamp: new Date().toISOString(),
+        };
+
+        setChats(prevChats => prevChats.map(chat => 
+            chat.id === activeChatId 
+                ? { ...chat, messages: [...chat.messages, newMessage] }
+                : chat
+        ));
+    }, [activeChatId]);
 
     const handleSendMessage = async () => {
         const trimmedMessage = currentMessage.trim();
@@ -322,59 +276,63 @@ const ChatComponent: React.FC = () => {
                 onPinChat={handlePinChat}
                 activeChatId={activeChatId || ''}
             />
-            <main className="flex-1 flex flex-col h-screen">
-                <header className="p-5 border-b border-light-border dark:border-dark-border">
+            <main className="flex-1 flex flex-col h-screen relative">
+                <header className="p-5 border-b border-light-border dark:border-dark-border flex justify-between items-center">
                     <h1 className="text-3xl font-bold">Service.AI 🎧</h1>
+                    {isVoiceMode && <div className="text-red-500 font-bold animate-pulse">LIVE</div>}
                 </header>
-                <div className="flex-1 overflow-y-auto">
-                    {activeChat?.messages.map(msg => <ChatMessage key={msg.id} message={msg} />)}
-                    {isLoading && (
-                        <div className="flex items-center justify-center p-4">
-                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-light-accent dark:border-dark-accent"></div>
-                           <p className="ml-3">Service.AI is thinking...</p>
+                
+                {isVoiceMode ? (
+                    <VoiceChat onClose={() => setIsVoiceMode(false)} onMessage={handleVoiceMessage} />
+                ) : (
+                    <>
+                        <div className="flex-1 overflow-y-auto">
+                            {activeChat?.messages.map(msg => <ChatMessage key={msg.id} message={msg} />)}
+                            {isLoading && (
+                                <div className="flex items-center justify-center p-4">
+                                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-light-accent dark:border-dark-accent"></div>
+                                   <p className="ml-3">Service.AI is thinking...</p>
+                                </div>
+                            )}
+                            <div ref={chatEndRef} />
                         </div>
-                    )}
-                    <div ref={chatEndRef} />
-                </div>
-                <div className="p-4 border-t border-light-border dark:border-dark-border">
-                    <div className="flex items-center gap-2 max-w-4xl mx-auto">
-                        <div className="relative flex-grow">
-                            <textarea
-                                value={currentMessage}
-                                onChange={(e) => setCurrentMessage(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleSendMessage();
-                                    }
-                                }}
-                                placeholder="Type your message or use the microphone..."
-                                className="w-full p-4 pr-14 rounded-xl border-2 border-light-border dark:border-dark-border bg-transparent focus:outline-none focus:ring-2 focus:ring-light-accent/50 dark:focus:ring-dark-accent/50 resize-none"
-                                rows={1}
-                                disabled={isLoading}
-                            />
-                            <button 
-                                onClick={handleSendMessage} 
-                                disabled={isLoading || !currentMessage.trim()}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-light-accent text-white disabled:bg-gray-400 hover:bg-light-accent-hover transition-colors"
-                            >
-                                <SendIcon className="w-6 h-6" />
-                            </button>
+                        <div className="p-4 border-t border-light-border dark:border-dark-border">
+                            <div className="flex items-center gap-2 max-w-4xl mx-auto">
+                                <div className="relative flex-grow">
+                                    <textarea
+                                        value={currentMessage}
+                                        onChange={(e) => setCurrentMessage(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSendMessage();
+                                            }
+                                        }}
+                                        placeholder="Type your message or use the microphone..."
+                                        className="w-full p-4 pr-14 rounded-xl border-2 border-light-border dark:border-dark-border bg-transparent focus:outline-none focus:ring-2 focus:ring-light-accent/50 dark:focus:ring-dark-accent/50 resize-none"
+                                        rows={1}
+                                        disabled={isLoading}
+                                    />
+                                    <button 
+                                        onClick={handleSendMessage} 
+                                        disabled={isLoading || !currentMessage.trim()}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-light-accent text-white disabled:bg-gray-400 hover:bg-light-accent-hover transition-colors"
+                                    >
+                                        <SendIcon className="w-6 h-6" />
+                                    </button>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsVoiceMode(true)}
+                                    title='Start voice mode'
+                                    className="p-3 rounded-full text-light-text/70 dark:text-dark-text/70 hover:bg-black/10 dark:hover:bg-white/10 transition-all duration-200"
+                                >
+                                    <MicrophoneIcon className="w-6 h-6" />
+                                </button>
+                            </div>
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleToggleRecording}
-                            title={isRecording ? 'Stop recording' : 'Start voice input'}
-                            className={`p-3 rounded-full transition-all duration-200 ease-in-out
-                                ${isRecording 
-                                    ? 'bg-red-500 text-white animate-pulse' 
-                                    : 'text-light-text/70 dark:text-dark-text/70 hover:bg-black/10 dark:hover:bg-white/10'
-                                }`}
-                        >
-                            <MicrophoneIcon className="w-6 h-6" />
-                        </button>
-                    </div>
-                </div>
+                    </>
+                )}
             </main>
         </div>
     );

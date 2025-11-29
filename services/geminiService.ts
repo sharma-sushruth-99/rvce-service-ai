@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Chat, GenerateContentResponse, FunctionDeclaration, Type, Part } from "@google/genai";
 import { DB_SCHEMA } from '../constants';
 import { Message, User } from '../types';
@@ -10,7 +11,7 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY || 'YOUR_API_KEY_HERE' });
 
-const systemInstruction = `You are "Service.AI", a friendly, professional, and empathetic customer support agent for a major e-commerce company specializing in computer accessories. 
+export const systemInstruction = `You are "Service.AI", a friendly, professional, and empathetic customer support agent for a major e-commerce company specializing in computer accessories. 
 Your goal is to assist users with their queries regarding products, orders, and feedback.
 
 You have access to a database with the following schema to help you answer questions. Use the provided functions to query this database.
@@ -50,7 +51,7 @@ ${DB_SCHEMA}
 
 // --- Human Handoff Rules ---
 // 1. Proactive Offer: If the user's message implies frustration, dissatisfaction, or anger (e.g., "this is not working", "I'm frustrated", "useless bot", "you're not helping"), your primary response MUST be to first acknowledge their frustration and then ask if they would like to speak to a human customer service representative. For example: 'I understand this is frustrating. Would you like me to connect you with our human customer service department?' Do not call any functions at this stage.
-// 2. Explicit Request: If the user explicitly asks to speak to a human agent, representative, or person, OR if they respond positively (e.g., "yes", "please") after you have offered, you MUST call the 'contactHumanSupport' function with their first name (which you can extract from their 'FullName').
+// 2. Explicit Request: If the user explicitly asks to speak to a human agent, representative, or person, OR if they respond positively (e.g., "yes", "please") after you have offered, you MUST call the 'contactHumanSupport' function with the user's first name (which you can extract from their 'FullName').
 // 3. Handoff Message: After the 'contactHumanSupport' function call succeeds, your response to the user MUST be exactly: 'Sure {name}, i will contact the human customer service department right away. [CONTACT_SUPPORT]' replacing {name} with the user's first name. Do not add any other text.
 
 // --- Off-Topic & Empathetic Responses ---
@@ -121,7 +122,7 @@ const contactHumanSupport = (userName: string) => {
     return { success: true, message: `Support contact initiated for ${userName}.` };
 };
 
-const functions = {
+export const toolsMap = {
     getOrderStatus,
     listUserOrders,
     findProducts,
@@ -131,7 +132,7 @@ const functions = {
 };
 
 // --- Gemini Function Declarations ---
-const functionDeclarations: FunctionDeclaration[] = [
+export const functionDeclarations: FunctionDeclaration[] = [
     {
         name: 'getOrderStatus',
         parameters: { type: Type.OBJECT, properties: { orderId: { type: Type.NUMBER, description: 'The ID of the order to check.' } }, required: ['orderId'] },
@@ -198,59 +199,84 @@ export const sendMessage = async (session: Chat, prompt: string, user: User): Pr
     try {
         let response: GenerateContentResponse = await session.sendMessage({ message: fullPrompt });
 
-        if (response.functionCalls && response.functionCalls.length > 0) {
-            const fc = response.functionCalls[0];
-            const functionName = fc.name as keyof typeof functions;
+        // Loop handles multiple or sequential function calls until the model returns text.
+        while (response.functionCalls && response.functionCalls.length > 0) {
+            const functionCalls = response.functionCalls;
+            const functionResponseParts: Part[] = [];
 
-            if (functions[functionName]) {
-                const args = fc.args as any;
-                let result;
-                switch (functionName) {
-                    case 'getOrderStatus':
-                        result = functions.getOrderStatus(args.orderId);
-                        break;
-                    case 'listUserOrders':
-                        result = functions.listUserOrders(args.userId);
-                        break;
-                    case 'findProducts':
-                        result = functions.findProducts(args.query);
-                        break;
-                    case 'submitFeedback':
-                        result = functions.submitFeedback(args.userId, args.rating, args.description);
-                        break;
-                    case 'listUserTransactions':
-                        result = functions.listUserTransactions(args.userId);
-                        break;
-                    case 'contactHumanSupport':
-                        result = functions.contactHumanSupport(args.name);
-                        break;
-                    default:
-                        console.error(`Unknown function call: ${functionName}`);
-                        return "I'm sorry, I encountered an unknown internal function and can't proceed.";
-                }
-                
-                const functionResponseParts: Part[] = [
-                  {
-                    functionResponse: {
-                      name: fc.name,
-                      response: {
-                        result,
+            for (const fc of functionCalls) {
+                const functionName = fc.name as keyof typeof toolsMap;
+
+                if (toolsMap[functionName]) {
+                    const args = fc.args as any;
+                    let result;
+                    try {
+                        switch (functionName) {
+                            case 'getOrderStatus':
+                                result = toolsMap.getOrderStatus(args.orderId);
+                                break;
+                            case 'listUserOrders':
+                                result = toolsMap.listUserOrders(args.userId);
+                                break;
+                            case 'findProducts':
+                                result = toolsMap.findProducts(args.query);
+                                break;
+                            case 'submitFeedback':
+                                result = toolsMap.submitFeedback(args.userId, args.rating, args.description);
+                                break;
+                            case 'listUserTransactions':
+                                result = toolsMap.listUserTransactions(args.userId);
+                                break;
+                            case 'contactHumanSupport':
+                                result = toolsMap.contactHumanSupport(args.name);
+                                break;
+                            default:
+                                result = { error: `Unknown function: ${functionName}` };
+                        }
+                    } catch (error: any) {
+                         console.error(`Error executing function ${functionName}:`, error);
+                         result = { error: `Function execution failed: ${error.message}` };
+                    }
+                    
+                    functionResponseParts.push({
+                      functionResponse: {
+                        name: fc.name,
+                        id: fc.id, 
+                        response: {
+                          result,
+                        },
                       },
-                    },
-                  },
-                ];
-                response = await session.sendMessage({ message: functionResponseParts });
+                    });
+                } else {
+                     functionResponseParts.push({
+                      functionResponse: {
+                        name: fc.name,
+                        id: fc.id,
+                        response: {
+                          result: { error: `Function ${fc.name} is not available.` }
+                        },
+                      },
+                    });
+                }
             }
+
+            // Send function responses back to the model
+            response = await session.sendMessage({ message: functionResponseParts });
         }
         
-        const textContent = response.text;
+        let textContent = "";
+        try {
+            textContent = response.text || "";
+        } catch (e) {
+            // response.text can throw if no text part is found.
+        }
 
         if (textContent) {
             return textContent;
         }
 
-        console.error("No text part found in Gemini response", response);
-        throw new Error("Received an empty or invalid response from the AI.");
+        // Return empty string instead of throwing if content is blocked or empty but valid
+        return "";
 
     } catch (error) {
         console.error("Detailed Gemini API Error in geminiService:", error);
@@ -273,8 +299,8 @@ export const generateChatTitle = async (prompt: string): Promise<string> => {
             contents: titlePrompt,
         });
 
-        const title = response.text.trim();
-        return title || "New Chat";
+        const title = response.text || "New Chat";
+        return title;
     } catch (error) {
         console.error("Detailed error generating chat title:", error);
         return "New Chat";
