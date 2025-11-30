@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Chat as GeminiChat } from '@google/genai';
 import { useAuth } from '../context/AuthContext';
@@ -144,7 +145,7 @@ const ChatComponent: React.FC = () => {
         });
     }, []);
 
-    const handleVoiceMessage = useCallback((text: string, sender: 'user' | 'ai') => {
+    const handleVoiceMessage = useCallback(async (text: string, sender: 'user' | 'ai') => {
         if (!activeChatId) return;
 
         const newMessage: Message = {
@@ -159,7 +160,28 @@ const ChatComponent: React.FC = () => {
                 ? { ...chat, messages: [...chat.messages, newMessage] }
                 : chat
         ));
-    }, [activeChatId]);
+
+        // Auto-rename logic for voice mode
+        if (sender === 'user') {
+            const currentChat = chats.find(c => c.id === activeChatId);
+            if (currentChat && currentChat.name === 'New Chat') {
+                // Use a small delay to ensure we don't spam the title generator
+                // or generate based on "hello"
+                 const greetingRegex = /^(hi|hello|hey|how are you|what's up|good (morning|afternoon|evening))\s*[.?!]?$/i;
+                 if (!greetingRegex.test(text)) {
+                     try {
+                        const newTitle = await generateChatTitle(text);
+                        if (newTitle && newTitle !== "New Chat") {
+                            handleRenameChat(activeChatId, newTitle);
+                        }
+                     } catch (e) {
+                         console.error("Failed to auto-rename voice chat:", e);
+                     }
+                 }
+            }
+        }
+
+    }, [activeChatId, chats, handleRenameChat]);
 
     const handleSendMessage = async () => {
         const trimmedMessage = currentMessage.trim();

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from './ThemeToggle';
@@ -119,9 +120,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat
                                 </div>
                             </div>
                           {!isCollapsed && editingChatId !== chat.id && (
-                            <div className="absolute right-2 flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute right-2 flex items-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                 <button
                                     onClick={(e) => {
+                                        e.preventDefault();
                                         e.stopPropagation();
                                         onPinChat(chat.id);
                                     }}
@@ -132,6 +134,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat
                                 </button>
                                 <button
                                     onClick={(e) => {
+                                        e.preventDefault();
                                         e.stopPropagation();
                                         setEditingChatId(chat.id);
                                         setEditingName(chat.name);
@@ -143,10 +146,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, toggleSidebar, onNewChat
                                 </button>
                                 <button
                                     onClick={(e) => {
+                                        e.preventDefault();
                                         e.stopPropagation();
                                         onDeleteChat(chat.id);
                                     }}
-                                    className="p-1 rounded-md text-light-text/60 dark:text-dark-text/60 hover:bg-black/10 dark:hover:bg-white/10"
+                                    className="p-1 rounded-md text-light-text/60 dark:text-dark-text/60 hover:bg-black/10 dark:hover:bg-white/10 hover:text-red-500 dark:hover:text-red-400"
                                     title="Delete chat"
                                 >
                                     <TrashIcon className="w-4 h-4" />

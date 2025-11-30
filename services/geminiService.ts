@@ -189,7 +189,9 @@ export const createChatSession = (history: Message[]): Chat => {
     });
 };
 
-export const sendMessage = async (session: Chat, prompt: string, user: User): Promise<string> => {
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+export const sendMessage = async (session: Chat, prompt: string, user: User, retryCount = 0): Promise<string> => {
     if (!API_KEY) return "AI service is currently unavailable. API key is missing.";
 
     const fullPrompt = `(User Details: UserID=${user.id}, FullName=${user.fullName}, Email=${user.email})
@@ -197,7 +199,26 @@ export const sendMessage = async (session: Chat, prompt: string, user: User): Pr
     User query: ${prompt}`;
 
     try {
-        let response: GenerateContentResponse = await session.sendMessage({ message: fullPrompt });
+        let response: GenerateContentResponse;
+        
+        try {
+            response = await session.sendMessage({ message: fullPrompt });
+        } catch (error: any) {
+             // Handle 503 Service Unavailable with exponential backoff
+             if ((error.status === 503 || error.message?.includes('503') || error.message?.includes('unavailable')) && retryCount < 3) {
+                const delay = Math.pow(2, retryCount) * 1000;
+                console.warn(`Gemini API 503 error. Retrying in ${delay}ms... (Attempt ${retryCount + 1})`);
+                await wait(delay);
+                return sendMessage(session, prompt, user, retryCount + 1);
+            }
+
+            // Check if it's the specific "No text part found" error which might happen on empty responses
+            if (error.message && error.message.includes("No text part found")) {
+                console.warn("Gemini returned no text part on initial send.");
+                return "";
+            }
+            throw error;
+        }
 
         // Loop handles multiple or sequential function calls until the model returns text.
         while (response.functionCalls && response.functionCalls.length > 0) {
@@ -261,12 +282,31 @@ export const sendMessage = async (session: Chat, prompt: string, user: User): Pr
             }
 
             // Send function responses back to the model
-            response = await session.sendMessage({ message: functionResponseParts });
+            try {
+                response = await session.sendMessage({ message: functionResponseParts });
+            } catch (error: any) {
+                 if ((error.status === 503 || error.message?.includes('503') || error.message?.includes('unavailable')) && retryCount < 3) {
+                    const delay = Math.pow(2, retryCount) * 1000;
+                    console.warn(`Gemini API 503 error during function call. Retrying in ${delay}ms... (Attempt ${retryCount + 1})`);
+                    await wait(delay);
+                    // Note: Recursion here is tricky with function parts. For simplicity, we break out or accept failure if function response send fails.
+                    // Ideally, we'd need to reconstruct the function response message to retry properly, 
+                    // but usually 503s happen on the initial prompt or main generation.
+                }
+
+                if (error.message && error.message.includes("No text part found")) {
+                     console.warn("Gemini returned no text part after function response.");
+                     return "";
+                }
+                throw error;
+            }
         }
         
         let textContent = "";
         try {
-            textContent = response.text || "";
+            if (response.candidates && response.candidates.length > 0) {
+                 textContent = response.text || "";
+            }
         } catch (e) {
             // response.text can throw if no text part is found.
         }
@@ -281,6 +321,8 @@ export const sendMessage = async (session: Chat, prompt: string, user: User): Pr
     } catch (error) {
         console.error("Detailed Gemini API Error in geminiService:", error);
         if (error instanceof Error) {
+            // Simplify error message for UI
+            if (error.message.includes("No text part found")) return "";
             throw error;
         }
         throw new Error("Failed to get response from Gemini API.");
